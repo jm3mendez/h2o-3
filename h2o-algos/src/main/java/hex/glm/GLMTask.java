@@ -1400,140 +1400,6 @@ public abstract class GLMTask  {
     }
   }
 
-
-
-  public static class GLMCoordinateDescentTaskSeqNaive extends MRTask<GLMCoordinateDescentTaskSeqNaive> {
-    public double _normMul;
-    public double _normSub;
-    final double [] _betaold; // current old value at j
-    final double [] _betanew; // global beta @ j-1 that was just updated.
-    final int [] _catLvls_new; // sorted list of indices of active levels only for one categorical variable
-    final int [] _catLvls_old;
-    public double [] _temp;
-    boolean _skipFirst;
-    long _nobs;
-    int _cat_num; // 1: c and p categorical, 2:c numeric and p categorical, 3:c and p numeric , 4: c categorical and previous num.
-    boolean _interceptnew;
-    boolean _interceptold;
-    int _iter_cnt;
-
-    public  GLMCoordinateDescentTaskSeqNaive(int iter_cnt,boolean interceptold, boolean interceptnew, int cat_num ,
-                                        double [] betaold, double [] betanew, int [] catLvlsold, int [] catLvlsnew,
-                                        double normMulold, double normSubold,
-                                             boolean skipFirst ) { // pass it norm mul and norm sup - in the weights already done. norm
-      _iter_cnt = iter_cnt;
-      //mul and mean will be null without standardization.
-      _normMul = normMulold;
-      _normSub = normSubold;
-      _cat_num = cat_num;
-      _betaold = betaold;
-      _betanew = betanew;
-      _interceptold = interceptold; // if updating beta_1, then the intercept is the previous column
-      _interceptnew = interceptnew; // if currently updating the intercept value
-      _catLvls_old = catLvlsold;
-      _catLvls_new = catLvlsnew;
-      _skipFirst = skipFirst;
-    }
-
-    @Override
-    public void map(Chunk [] chunks) {
-      int cnt = 0;
-      final double [] wChunk = ((C8DVolatileChunk)chunks[cnt++]).getValues();
-      final double [] zChunk = ((C8DVolatileChunk)chunks[cnt++]).getValues();
-      final double [] ztildaChunk = ((C8DVolatileChunk)chunks[cnt++]).getValues();
-      final double [] xChunk0=((C8DVolatileChunk)chunks[cnt++]).getValues(), xChunk1=((C8DVolatileChunk)chunks[cnt++]).getValues();
-      final double [] xPrev = (_iter_cnt & 1) == 0?xChunk0:xChunk1;
-      final double [] xCurr = (_iter_cnt & 1) == 0?xChunk1:xChunk0;
-      _temp = new double[_betaold.length];
-      if (_interceptnew) {
-        Arrays.fill(xCurr, 1);
-      } else {
-        if(_interceptold) Arrays.fill(xPrev, 1);
-        chunks[chunks.length-1].getDoubles(xCurr,0,xCurr.length,Double.NaN, _normSub, _normMul);
-      }
-      switch(_cat_num){
-        case 1: throw H2O.unimpl();
-        case 2: throw H2O.unimpl();
-        case 3:
-          double bOld = _betaold[0];
-          double bNew = _betanew[0];
-          for (int i = 0; i < chunks[0]._len; ++i) { // going over all the rows in the chunk
-            ztildaChunk[i] = ztildaChunk[i] - bOld + xPrev[i] * bNew; //
-            _temp[0] += wChunk[i] * (zChunk[i] - ztildaChunk[i]);
-          }
-          break;
-        case 4: throw H2O.unimpl();
-        default:
-          throw H2O.unimpl();
-      }
-      // For each observation, add corresponding term to temp - or if categorical variable only add the term corresponding to its active level and the active level
-      // of the most recently updated variable before it (if also cat). If for an obs the active level corresponds to an inactive column, we just dont want to include
-      // it - same if inactive level in most recently updated var. so set these to zero ( Wont be updating a betaj which is inactive) .
-//      for (int i = 0; i < chunks[0]._len; ++i) { // going over all the rows in the chunk
-//        double betanew = 0; // most recently updated prev variable
-//        double betaold = 0; // old value of current variable being updated
-//        double w = wChunk[i];
-//        if(w == 0) continue;
-//        ++_nobs;
-//        int observation_level = 0, observation_level_p = 0;
-//        double val = 1, valp = 1;
-//        if(_cat_num == 1) {
-//          observation_level = (int) xCurr[i]; // only need to change one temp value per observation.
-//          if (_catLvls_old != null)
-//            observation_level = Arrays.binarySearch(_catLvls_old, observation_level);
-//          observation_level_p = (int) xPrev[i]; // both cat
-//          if (_catLvls_new != null)
-//            observation_level_p = Arrays.binarySearch(_catLvls_new, observation_level_p);
-//          if(_skipFirst){
-//            observation_level--;
-//            observation_level_p--;
-//          }
-//        } else if(_cat_num == 2){
-//          val = xCurr[i]; // current num and previous cat
-//          observation_level_p = (int) xPrev[i];
-//          if (_catLvls_new != null)
-//            observation_level_p = Arrays.binarySearch(_catLvls_new, observation_level_p);
-//          if(_skipFirst){
-//            observation_level_p--;
-//          }
-//        }
-//        else if(_cat_num == 3){
-//          val = xCurr[i]; // both num
-//          valp = xPrev[i];
-//        }
-//        else if(_cat_num == 4){
-//          observation_level = (int) xCurr[i]; // current cat
-//          if (_catLvls_old != null)
-//            observation_level = Arrays.binarySearch(_catLvls_old, observation_level); // search to see if this level is active.
-//          if(_skipFirst){
-//            observation_level--;
-//          }
-//          valp = xPrev[i]; //prev numeric
-//        }
-//
-//        if(observation_level >= 0)
-//         betaold = _bOld[observation_level];
-//        if(observation_level_p >= 0)
-//         betanew = _bNew[observation_level_p];
-//
-//        if (_interceptnew) {
-//            ztildaChunk[i] = ztildaChunk[i] - betaold + valp * betanew; //
-//            _temp[0] += w * (zChunk[i] - ztildaChunk[i]);
-//          } else {
-//            ztildaChunk[i] = ztildaChunk[i] - val * betaold + valp * betanew;
-//            if(observation_level >=0 ) // if the active level for that observation is an "inactive column" don't want to add contribution to temp for that observation
-//            _temp[observation_level] += w * val * (zChunk[i] - ztildaChunk[i]);
-//         }
-//       }
-    }
-    @Override
-    public void reduce(GLMCoordinateDescentTaskSeqNaive git){
-      ArrayUtils.add(_temp, git._temp);
-      _nobs += git._nobs;
-      super.reduce(git);
-    }
-  }
-
   public static class GLMCoordinateDescentTaskSeqNaiveNumNum extends MRTask<GLMCoordinateDescentTaskSeqNaiveNumNum> {
     final double _normMul;
     final double _normSub;
@@ -1564,8 +1430,9 @@ public abstract class GLMTask  {
       chunks[chunks.length - 1].getDoubles(xCurr, 0, xCurr.length, _NA, _normSub, _normMul);
       for (int i = 0; i < chunks[0]._len; ++i) { // going over all the rows in the chunk
         double x = xCurr[i];
-        ztildaChunk[i] = ztildaChunk[i] - x*_bOld + xPrev[i] * _bNew; //
-        _res += wChunk[i] * x * (zChunk[i] - ztildaChunk[i]);
+        double ztilda = ztildaChunk[i] - x*_bOld + xPrev[i] * _bNew;;
+        ztildaChunk[i] = ztilda; //
+        _res += wChunk[i] * x * (zChunk[i] - ztilda);
       }
     }
     @Override
@@ -1577,7 +1444,6 @@ public abstract class GLMTask  {
   public static class GLMCoordinateDescentTaskSeqNaiveNumIcpt extends MRTask<GLMCoordinateDescentTaskSeqNaiveNumIcpt> {
     final double _bOld; // current old value at j
     final double _bNew; // global beta @ j-1 that was just updated.
-
     double _res;
     int _iter_cnt;
 
@@ -1631,14 +1497,16 @@ public abstract class GLMTask  {
       final double[] xCurr = ((C8DVolatileChunk) chunks[cnt + 1-(_iter_cnt & 1)]).getValues();
       chunks[chunks.length - 1].getDoubles(xCurr, 0, xCurr.length, _NA, _normSub, _normMul);
       for (int i = 0; i < chunks[0]._len; ++i) { // going over all the rows in the chunk
-        ztildaChunk[i] = ztildaChunk[i] - xCurr[i]*_bOld + _bNew; //
-        _res += wChunk[i] * (zChunk[i] - ztildaChunk[i]);
+        double x = xCurr[i];
+        ztildaChunk[i] = ztildaChunk[i] - x*_bOld + _bNew; //
+        _res += wChunk[i] * x * (zChunk[i] - ztildaChunk[i]);
       }
     }
     @Override
     public void reduce(GLMCoordinateDescentTaskSeqNaiveIcptNum git){
       _res += git._res;
     }
+
   }
 
   public static class GLMCoordinateDescentTaskSeqNaiveIcptCat extends MRTask<GLMCoordinateDescentTaskSeqNaiveIcptCat> {
@@ -1805,8 +1673,8 @@ public abstract class GLMTask  {
     final double _icptDiff; // current old value at j
     double _res;
 
-    public GLMCoordinateDescentTaskSeqNaiveResidual(double betaOld, double betaNew) { // pass it norm mul and norm sup - in the weights already done. norm
-      _icptDiff = betaNew - betaOld;
+    public GLMCoordinateDescentTaskSeqNaiveResidual(double betaNew) { // pass it norm mul and norm sup - in the weights already done. norm
+      _icptDiff = betaNew;
     }
     @Override
     public void map(Chunk[] chunks) {
@@ -1815,7 +1683,7 @@ public abstract class GLMTask  {
       final double[] zChunk = ((C8DVolatileChunk) chunks[cnt++]).getValues();
       final double[] ztildaChunk = ((C8DVolatileChunk) chunks[cnt++]).getValues();
       for (int i = 0; i < chunks[0]._len; ++i) { // going over all the rows in the chunk
-        double diff = zChunk[i] - ztildaChunk[i] + _icptDiff;
+        double diff = zChunk[i] - ztildaChunk[i] - _icptDiff;
         _res += wChunk[i] * diff * diff;
       }
     }
