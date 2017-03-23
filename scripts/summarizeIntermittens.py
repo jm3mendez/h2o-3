@@ -31,7 +31,14 @@ will be stored for each intermittent failure:
 
 g_test_root_dir = os.path.dirname(os.path.realpath(__file__)) # directory where we are running out code from
 g_script_name = ''  # store script name.
-g_timestamp = ''
+g_threshold_failure = 0
+g_file_start = []
+
+
+
+
+
+
 g_job_name = ''
 g_build_id = ''
 g_git_hash = ''
@@ -85,7 +92,7 @@ def init_update_each_failed_test_dict(one_test_info, failed_test_path, newTest):
 #    if g_timestamp not in one_test_info["Timestamp"]:
     one_test_info["JenkinsJobName"].append(g_job_name)
     one_test_info["BuildID"].append(g_build_id)
-    one_test_info["Timestamp"].append(g_timestamp)
+    one_test_info["Timestamp"].append(g_threshold_failure)
     one_test_info["GitHash"].append(g_git_hash)
     one_test_info["TestCategory"].append(g_unit_test_type) # would be JUnit, PyUnit, RUnit or HadoopPyUnit, HadoopRUnit
     one_test_info["NodeName"].append(g_node_name)
@@ -101,19 +108,7 @@ def init_update_each_failed_test_dict(one_test_info, failed_test_path, newTest):
         one_test_info["FailureMessages"].append("")   # append empty error message if file not found
     return one_test_info
 
-def usage():
-    """
-    Print USAGE help.
-    """
-    print("")
-    print("Usage:  ")
-    print("python summarizeINtermittents threshold Failed_PyUnits_summary_dict_from ....")
-    print(" threshold is an integer for which a failed test is labeled intermittent if its number of f"
-          "ailure exceeds it.")
-    print(" Failed_PyUnits_summary_dict_from is a string denoting the beginning of pickle files that contains"
-          "")
-    print(" The month_of_data_to_keep is an integer indicating how many months that we want to kee the data "
-          "starting from now.  Any data that is older than the value will be deleted.")
+
 
 '''
 This function is written to extract the console output that has already been stored
@@ -189,7 +184,7 @@ def save_failed_tests_info():
         with open(g_summary_text_filename, 'a') as failed_file:
             for index in range(len(g_failed_testnames)):
 
-                testInfo = ','.join([str(g_timestamp), g_job_name, str(g_build_id), g_git_hash, g_node_name,
+                testInfo = ','.join([str(g_threshold_failure), g_job_name, str(g_build_id), g_git_hash, g_node_name,
                                      g_unit_test_type, g_failed_testnames[index]])
                 failed_file.write(testInfo)
                 failed_file.write('\n')
@@ -286,6 +281,19 @@ def clean_up_summary_text(oldest_time_allowed):
             with open(g_temp_filename, 'r') as temp_file:
                 text_file.write(temp_file.read())
 
+def usage():
+    """
+    Print USAGE help.
+    """
+    print("")
+    print("Usage:  ")
+    print("python summarizeINtermittents threshold Failed_PyUnits_summary_dict_from ....")
+    print(" threshold is an integer for which a failed test is labeled intermittent if its number of "
+          "failure exceeds it.")
+    print(" Failed_PyUnits_summary_dict_from is a string denoting the beginning of pickle files that contains"
+          "")
+    print(" ... denotes extra strings that represent the beginning of pickle files that you want us to summarize"
+          "for you.")
 
 def main(argv):
     """
@@ -299,7 +307,10 @@ def main(argv):
     """
     global g_script_name
     global g_test_root_dir
-    global g_timestamp
+    global g_threshold_failure
+    global g_file_start
+
+
     global g_job_name
     global g_build_id
     global g_git_hash
@@ -311,19 +322,17 @@ def main(argv):
     global g_failed_tests_dict      # store failed test info as a dictionary
     global g_resource_url
 
-    if len(argv) < 11:
+    if len(argv) < 4:
         print "Wrong call.  Not enough arguments.\n"
         usage()
         sys.exit(1)
     else:   # we may be in business
         g_script_name = os.path.basename(argv[0])   # get name of script being run.
-        g_timestamp = float(argv[1])
-        g_job_name = argv[2]
-        g_build_id = argv[3]
-        g_git_hash = argv[4]
-        g_node_name= argv[5]
-        g_unit_test_type = argv[6]
-        g_jenkins_url = argv[7]
+        g_threshold_failure = int(argv[1])
+
+        for ind in range(2, len(argv)):
+            g_file_start.append(argv[ind])
+
 
         g_temp_filename = os.path.join(g_test_root_dir,'tempText')
         g_summary_text_filename = '/'.join([g_test_root_dir, '..', argv[8]])
