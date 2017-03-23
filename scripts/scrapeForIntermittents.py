@@ -156,11 +156,10 @@ def extract_failed_tests_info():
                             for findex in range(2,len(temp)):
                                 tempMess = temp[findex].split(">")
                                 g_failed_test_paths.append(tempMess[0].strip('"'))
-                                if "JUnit" in g_unit_test_type:
-                                    g_failed_testnames.append(tempMess[1].strip("</a"))
-                                else:
-                                    g_failed_testnames.append(tempMess[1].strip("</a").strip("r_suite."))
-
+                                ftestname = tempMess[1].strip("</a")
+                                nameLen = len(ftestname)
+                                true_testname = ftestname[8:nameLen] if 'r_suite.' in ftestname else ftestname
+                                g_failed_testnames.append(true_testname)
                             break   # done.  Only one spot contains failed test info.
         finally:
             console_file.close()

@@ -40,14 +40,13 @@ g_file_start = []
 g_summary_dict_intermittents = dict()
 g_summary_dict_all = dict()
 
-def init_intermittents_dict():
+def init_intermittents_dict(init_dict):
     """
     initialize the fields of dictionary storing failed tests.
     :return:
     """
-    global g_summary_dict_intermittents
-    g_summary_dict_intermittents["TestName"] = []
-    g_summary_dict_intermittents["TestInfo"] = []
+    init_dict["TestName"] = []
+    init_dict["TestInfo"] = []
 
 
 def usage():
@@ -89,6 +88,8 @@ def summarizeFailedRuns():
 
     :return: None
     """
+    global g_summary_dict_all
+
     onlyFiles = [x for x in listdir(g_test_root_dir) if isfile(join(g_test_root_dir, x))]   # grab files
 
     for f in onlyFiles:
@@ -99,37 +100,20 @@ def summarizeFailedRuns():
                     temp_dict = pickle.load(dataFile)   # load in the file with dict containing failed tests
 
                     # scrape through temp_dict and see if we need to add the test to intermittents
-                    extractFailedTests(temp_dict)
+                    for ind in range(len(temp_dict)):
+                        addFailedTests(g_summary_dict_all, temp_dict, ind)
                 break
-
-
-def extractFailedTests(temp_dict):
-    """
-    This function will look through temp_dict and extract the test that failed more than the threshold and add to the
-    giant dictionary containing the info
-
-    :param temp_dict:
-    :return:
-    """
-    global g_summary_dict_all
-
-    for ind in range(len(temp_dict)):
-        addFailedTests(g_summary_dict_all, temp_dict, ind)
-        # if (temp_dict["TestInfo"][ind]["FailureCount"] >= g_threshold_failure):
-        #     addFailedTests(temp_dict, ind)
-
 
 def addFailedTests(summary_dict, temp_dict, index):
     testName = temp_dict["TestName"][index]
-    testNameList = summary_dict.keys()
+    testNameList = summary_dict["TestName"]
     # check if new intermittents or old ones
     if testName in testNameList:
         testIndex =testNameList.index(testName) # update the test
         updateFailedTestInfo(summary_dict, temp_dict["TestInfo"][index], testIndex, False)
     else:    # new intermittent uncovered
-        g_summary_dict_intermittents["TestName"].append(testName)
-        updateFailedTestInfo(summary_dict, temp_dict["TestInfo"][index],
-                             len(g_summary_dict_intermittents["TestName"]), True)
+        summary_dict["TestName"].append(testName)
+        updateFailedTestInfo(summary_dict, temp_dict["TestInfo"][index], len(summary_dict["TestName"])-1, True)
 
 
 def updateFailedTestInfo(summary_dict, one_test_info, testIndex, newTest):
@@ -164,7 +148,7 @@ def updateFailedTestInfo(summary_dict, one_test_info, testIndex, newTest):
     summary_dict["TestInfo"][testIndex]["GitHash"].extend(one_test_info["GitHash"])
     summary_dict["TestInfo"][testIndex]["TestCategory"].extend(one_test_info["TestCategory"])
     summary_dict["TestInfo"][testIndex]["NodeName"].extend(one_test_info["NodeName"])
-    summary_dict["TestInfo"][testIndex]["FailureCount"] += one_test_info["NodeName"]
+    summary_dict["TestInfo"][testIndex]["FailureCount"] += one_test_info["FailureCount"]
 
 
 def extractPrintSaveIntermittens():
@@ -177,11 +161,11 @@ def extractPrintSaveIntermittens():
     # extract intermittents from collected failed tests
     global g_summary_dict_intermittents
 
-    for ind in len(g_summary_dict_all):
+    for ind in range(len(g_summary_dict_all)):
         if g_summary_dict_all["TestInfo"][ind]["FailureCount"] >= g_threshold_failure:
             addFailedTests(g_summary_dict_intermittents, g_summary_dict_all, ind)
 
-    for ind in len(g_summary_dict_intermittents):
+    for ind in range(len(g_summary_dict_intermittents)):
         testName = g_summary_dict_intermittents["TestName"][ind]
         numberFailure = g_summary_dict_intermittents["TestInfo"][ind]["FailureCount"]
         firstFailedTS = min(g_summary_dict_intermittents["TestInfo"][ind]["Timestamp"])
@@ -189,8 +173,9 @@ def extractPrintSaveIntermittens():
         print("Intermittent test: {0} has failed {1} times in the past since {2}".format(testName, numberFailure,
                                                                                          time.ctime(firstFailedTS)))
     # save dict in file
-    with open(g_summary_dict_name, 'wb') as writeFile:
-        pickle.dump(g_summary_dict_intermittents, writeFile)
+    if len(g_summary_dict_intermittents) > 0:
+        with open(g_summary_dict_name, 'wb') as writeFile:
+            pickle.dump(g_summary_dict_intermittents, writeFile)
 
 
 def main(argv):
@@ -209,6 +194,8 @@ def main(argv):
     global g_AWS_file_path
     global g_file_start
     global g_summary_dict_name
+    global g_summary_dict_all
+    global g_summary_dict_intermittents
 
     if len(argv) < 6:
         print "Wrong call.  Not enough arguments.\n"
@@ -223,7 +210,8 @@ def main(argv):
             g_file_start.append(argv[ind])
 
         copyFilesToLocal()
-        init_intermittents_dict()
+        init_intermittents_dict(g_summary_dict_all)
+        init_intermittents_dict(g_summary_dict_intermittents)
         summarizeFailedRuns()
         extractPrintSaveIntermittens()
 
