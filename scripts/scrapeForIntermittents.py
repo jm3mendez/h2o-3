@@ -127,7 +127,7 @@ def get_console_out(url_string):
 
     :return: none
     """
-    full_command = 'curl ' + '"'+ url_string +'"'+ ' --user '+'"jenkins:jenkins"'+' > ' + g_temp_filename
+    full_command = 'curl ' + '"'+ url_string +'"'+ ' --user '+'"admin:admin"'+' > ' + g_temp_filename
     subprocess.call(full_command,shell=True)
 
 

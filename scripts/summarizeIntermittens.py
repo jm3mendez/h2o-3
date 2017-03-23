@@ -38,6 +38,7 @@ g_AWS_file_path = ''
 g_file_start = []
 
 g_summary_dict_intermittents = dict()
+g_summary_dict_all = dict()
 
 def init_intermittents_dict():
     """
@@ -98,11 +99,11 @@ def summarizeFailedRuns():
                     temp_dict = pickle.load(dataFile)   # load in the file with dict containing failed tests
 
                     # scrape through temp_dict and see if we need to add the test to intermittents
-                    extractIntermittents(temp_dict)
+                    extractFailedTests(temp_dict)
                 break
 
 
-def extractIntermittents(temp_dict):
+def extractFailedTests(temp_dict):
     """
     This function will look through temp_dict and extract the test that failed more than the threshold and add to the
     giant dictionary containing the info
@@ -110,26 +111,28 @@ def extractIntermittents(temp_dict):
     :param temp_dict:
     :return:
     """
-    global g_summary_dict_intermittents
+    global g_summary_dict_all
+
     for ind in range(len(temp_dict)):
-        if (temp_dict["TestInfo"][ind]["FailureCount"] >= g_threshold_failure):
-            addIntermittent(temp_dict, ind)
+        addFailedTests(g_summary_dict_all, temp_dict, ind)
+        # if (temp_dict["TestInfo"][ind]["FailureCount"] >= g_threshold_failure):
+        #     addFailedTests(temp_dict, ind)
 
 
-def addIntermittent(temp_dict, index):
-    global g_summary_dict_intermittents
+def addFailedTests(summary_dict, temp_dict, index):
     testName = temp_dict["TestName"][index]
-    testNameList = g_summary_dict_intermittents.keys()
+    testNameList = summary_dict.keys()
     # check if new intermittents or old ones
     if testName in testNameList:
         testIndex =testNameList.index(testName) # update the test
-        updateIntermittentInfo(temp_dict["TestInfo"][index], testIndex, False)
+        updateFailedTestInfo(summary_dict, temp_dict["TestInfo"][index], testIndex, False)
     else:    # new intermittent uncovered
         g_summary_dict_intermittents["TestName"].append(testName)
-        updateIntermittentInfo(temp_dict["TestInfo"][index], len(g_summary_dict_intermittents["TestName"]), True)
+        updateFailedTestInfo(summary_dict, temp_dict["TestInfo"][index],
+                             len(g_summary_dict_intermittents["TestName"]), True)
 
 
-def updateIntermittentInfo(one_test_info, testIndex, newTest):
+def updateFailedTestInfo(summary_dict, one_test_info, testIndex, newTest):
     """
     For each test, a dictionary structure will be built to record the various info about that test's failure
     information.  In particular, for each failed tests, there will be a dictionary associated with that test
@@ -146,31 +149,38 @@ def updateIntermittentInfo(one_test_info, testIndex, newTest):
     :return: a new dict for that test
     """
     if newTest: # setup the dict structure to store the new data
-        g_summary_dict_intermittents["TestInfo"].append(dict())
-        g_summary_dict_intermittents["TestInfo"][testIndex]["JenkinsJobName"]=[]
-        g_summary_dict_intermittents["TestInfo"][testIndex]["BuildID"]=[]
-        g_summary_dict_intermittents["TestInfo"][testIndex]["Timestamp"]=[]
-        g_summary_dict_intermittents["TestInfo"][testIndex]["GitHash"]=[]
-        g_summary_dict_intermittents["TestInfo"][testIndex]["TestCategory"]=[]
-        g_summary_dict_intermittents["TestInfo"][testIndex]["NodeName"]=[]
-        g_summary_dict_intermittents["TestInfo"][testIndex]["FailureCount"]=0
+        summary_dict["TestInfo"].append(dict())
+        summary_dict["TestInfo"][testIndex]["JenkinsJobName"]=[]
+        summary_dict["TestInfo"][testIndex]["BuildID"]=[]
+        summary_dict["TestInfo"][testIndex]["Timestamp"]=[]
+        summary_dict["TestInfo"][testIndex]["GitHash"]=[]
+        summary_dict["TestInfo"][testIndex]["TestCategory"]=[]
+        summary_dict["TestInfo"][testIndex]["NodeName"]=[]
+        summary_dict["TestInfo"][testIndex]["FailureCount"]=0
 
-    g_summary_dict_intermittents["TestInfo"][testIndex]["JenkinsJobName"].extend(one_test_info["JenkinsJobName"])
-    g_summary_dict_intermittents["TestInfo"][testIndex]["BuildID"].extend(one_test_info["BuildID"])
-    g_summary_dict_intermittents["TestInfo"][testIndex]["Timestamp"].extend(one_test_info["Timestamp"])
-    g_summary_dict_intermittents["TestInfo"][testIndex]["GitHash"].extend(one_test_info["GitHash"])
-    g_summary_dict_intermittents["TestInfo"][testIndex]["TestCategory"].extend(one_test_info["TestCategory"])
-    g_summary_dict_intermittents["TestInfo"][testIndex]["NodeName"].extend(one_test_info["NodeName"])
-    g_summary_dict_intermittents["TestInfo"][testIndex]["FailureCount"] += one_test_info["NodeName"]
+    summary_dict["TestInfo"][testIndex]["JenkinsJobName"].extend(one_test_info["JenkinsJobName"])
+    summary_dict["TestInfo"][testIndex]["BuildID"].extend(one_test_info["BuildID"])
+    summary_dict["TestInfo"][testIndex]["Timestamp"].extend(one_test_info["Timestamp"])
+    summary_dict["TestInfo"][testIndex]["GitHash"].extend(one_test_info["GitHash"])
+    summary_dict["TestInfo"][testIndex]["TestCategory"].extend(one_test_info["TestCategory"])
+    summary_dict["TestInfo"][testIndex]["NodeName"].extend(one_test_info["NodeName"])
+    summary_dict["TestInfo"][testIndex]["FailureCount"] += one_test_info["NodeName"]
 
 
-def printSaveIntermittens():
+def extractPrintSaveIntermittens():
     """
     This function will print out the intermittents onto the screen for casual viewing.  It will also print out
     where the giant summary dictionary is going to be stored.
 
     :return: None
     """
+    # extract intermittents from collected failed tests
+    global g_summary_dict_intermittents
+
+    for ind in len(g_summary_dict_all):
+        if g_summary_dict_all["TestInfo"][ind]["FailureCount"] >= g_threshold_failure:
+            addFailedTests(g_summary_dict_intermittents, g_summary_dict_all, ind)
+
     for ind in len(g_summary_dict_intermittents):
         testName = g_summary_dict_intermittents["TestName"][ind]
         numberFailure = g_summary_dict_intermittents["TestInfo"][ind]["FailureCount"]
@@ -215,7 +225,7 @@ def main(argv):
         copyFilesToLocal()
         init_intermittents_dict()
         summarizeFailedRuns()
-        printSaveIntermittens()
+        extractPrintSaveIntermittens()
 
 
 if __name__ == "__main__":
