@@ -875,9 +875,9 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
             break;
           // compute new objective
           double residual = new GLMCoordinateDescentTaskSeqNaiveResidual(beta[beta.length - 1]).doAll(_codVecs)._res;
-          double objx = residual * wsumInv * .5  + l1pen * ArrayUtils.l1norm(beta, true) + .5 * l2pen * ArrayUtils.l2norm2(beta, true);
+          double objx = residual * wsumuInv * .5  + l1pen * ArrayUtils.l1norm(beta, true) + .5 * l2pen * ArrayUtils.l2norm2(beta, true);
           double xdiff = (((objx_old - objx) / objx_old));
-          if (xdiff < 1e-4) {
+          if (xdiff < _parms._objective_epsilon) {
             System.out.println("residual old = " + objx_old + ", residual new = " + objx + ", xdiff = " + xdiff + ", betadiff = " + maxDiff);
             break;
           }
