@@ -127,8 +127,6 @@ def get_console_out(url_string):
 
     :return: none
     """
-    global g_temp_filename
-
     full_command = 'curl ' + '"'+ url_string +'"'+ ' --user '+'"jenkins:jenkins"'+' > ' + g_temp_filename
     subprocess.call(full_command,shell=True)
 
@@ -158,7 +156,10 @@ def extract_failed_tests_info():
                             for findex in range(2,len(temp)):
                                 tempMess = temp[findex].split(">")
                                 g_failed_test_paths.append(tempMess[0].strip('"'))
-                                g_failed_testnames.append(tempMess[1].strip("</a").strip("r_suite."))
+                                if "JUnit" in g_unit_test_type:
+                                    g_failed_testnames.append(tempMess[1].strip("</a"))
+                                else:
+                                    g_failed_testnames.append(tempMess[1].strip("</a").strip("r_suite."))
 
                             break   # done.  Only one spot contains failed test info.
         finally:

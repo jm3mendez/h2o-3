@@ -4,6 +4,8 @@ import sys
 import os
 import pickle
 import subprocess
+from os import listdir
+from os.path import isfile, join
 import time
 
 """
@@ -30,39 +32,104 @@ will be stored for each intermittent failure:
 # --------------------------------------------------------------------
 
 g_test_root_dir = os.path.dirname(os.path.realpath(__file__)) # directory where we are running out code from
-g_script_name = ''  # store script name.
 g_threshold_failure = 0
+g_summary_dict_name = ''
+g_AWS_file_path = ''
 g_file_start = []
 
+g_summary_dict_intermittents = dict()
 
-
-
-
-
-g_job_name = ''
-g_build_id = ''
-g_git_hash = ''
-g_node_name = ''
-g_unit_test_type = ''
-g_jenkins_url = ''
-g_temp_filename = os.path.join(g_test_root_dir,'tempText')  # temp file to store data curled from Jenkins
-g_failed_testnames = []
-g_failed_test_paths = []
-g_failed_tests_dict = ''    # contains the filename that contains failed tests info in a dictionary
-g_failed_tests_info_dict = dict()   # store failed tests info in a dictionary
-g_resource_url = ''
-
-def init_failed_tests_dict():
+def init_intermittents_dict():
     """
     initialize the fields of dictionary storing failed tests.
     :return:
     """
-    global g_failed_test_info_dict
-    g_failed_tests_info_dict["TestName"] = []
-    g_failed_tests_info_dict["TestInfo"] = []
+    global g_summary_dict_intermittents
+    g_summary_dict_intermittents["TestName"] = []
+    g_summary_dict_intermittents["TestInfo"] = []
 
 
-def init_update_each_failed_test_dict(one_test_info, failed_test_path, newTest):
+def usage():
+    """
+    Print USAGE help.
+    """
+    print("")
+    print("Usage:  ")
+    print("python summarizeINtermittents threshold Filename_for_dict AWS_path Failed_PyUnits_summary_dict_from ....")
+    print("- threshold is an integer for which a failed test is labeled intermittent if its number of "
+          "failure exceeds it.")
+    print("- Filename_for_dict is a string denoting the name of the dictionary that will store the final intermittents.")
+    print("- AWS_path is a string denoting something like: s3://ai.h2o.tests/jenkins and it is where you store your"
+          "data at.")
+    print("- Failed_PyUnits_summary_dict_from is a string denoting the beginning of pickle files that contains"
+          "")
+    print("- ... denotes extra strings that represent the beginning of pickle files that you want us to summarize"
+          "for you.")
+
+def copyFilesToLocal():
+    """
+    This function will go to the AWS path and try to grab the files for us to analyze.  This will fail if run
+    on local MAC.
+
+    :return: None
+    """
+    for ind in range(0, len(g_file_start)):
+        full_command = 's3cmd '+g_AWS_file_path+'/'+g_file_start[ind]+'*'
+
+        try:
+            subprocess.call(full_command,shell=True)
+        except:
+            continue
+
+def summarizeFailedRuns():
+    """
+    This function will look at the local directory and pick out files that have the correct start name and
+    summarize the results into one giant dict.
+
+    :return: None
+    """
+    onlyFiles = [x for x in listdir(g_test_root_dir) if isfile(join(g_test_root_dir, x))]   # grab files
+
+    for f in onlyFiles:
+        for fileStart in g_file_start:
+            if fileStart in f:  # found the file containing failed tests
+                fFullPath = os.path.join(g_test_root_dir, f)
+                with open(fFullPath, 'rb') as dataFile:
+                    temp_dict = pickle.load(dataFile)   # load in the file with dict containing failed tests
+
+                    # scrape through temp_dict and see if we need to add the test to intermittents
+                    extractIntermittents(temp_dict)
+                break
+
+
+def extractIntermittents(temp_dict):
+    """
+    This function will look through temp_dict and extract the test that failed more than the threshold and add to the
+    giant dictionary containing the info
+
+    :param temp_dict:
+    :return:
+    """
+    global g_summary_dict_intermittents
+    for ind in range(len(temp_dict)):
+        if (temp_dict["TestInfo"][ind]["FailureCount"] >= g_threshold_failure):
+            addIntermittent(temp_dict, ind)
+
+
+def addIntermittent(temp_dict, index):
+    global g_summary_dict_intermittents
+    testName = temp_dict["TestName"][index]
+    testNameList = g_summary_dict_intermittents.keys()
+    # check if new intermittents or old ones
+    if testName in testNameList:
+        testIndex =testNameList.index(testName) # update the test
+        updateIntermittentInfo(temp_dict["TestInfo"][index], testIndex, False)
+    else:    # new intermittent uncovered
+        g_summary_dict_intermittents["TestName"].append(testName)
+        updateIntermittentInfo(temp_dict["TestInfo"][index], len(g_summary_dict_intermittents["TestName"]), True)
+
+
+def updateIntermittentInfo(one_test_info, testIndex, newTest):
     """
     For each test, a dictionary structure will be built to record the various info about that test's failure
     information.  In particular, for each failed tests, there will be a dictionary associated with that test
@@ -78,222 +145,43 @@ def init_update_each_failed_test_dict(one_test_info, failed_test_path, newTest):
         "FailureMessages": contains failure messages for the test
     :return: a new dict for that test
     """
-    if newTest:
-        one_test_info = dict()
-        one_test_info["JenkinsJobName"] = []
-        one_test_info["BuildID"] = []
-        one_test_info["Timestamp"] = []
-        one_test_info["GitHash"] = []
-        one_test_info["TestCategory"] = []    # would be JUnit, PyUnit, RUnit or HadoopPyUnit, HadoopRUnit
-        one_test_info["NodeName"] = []
-        one_test_info["FailureMessages"] = [] # contains failure messages for the test
-        one_test_info["FailureCount"] = 0
+    if newTest: # setup the dict structure to store the new data
+        g_summary_dict_intermittents["TestInfo"].append(dict())
+        g_summary_dict_intermittents["TestInfo"][testIndex]["JenkinsJobName"]=[]
+        g_summary_dict_intermittents["TestInfo"][testIndex]["BuildID"]=[]
+        g_summary_dict_intermittents["TestInfo"][testIndex]["Timestamp"]=[]
+        g_summary_dict_intermittents["TestInfo"][testIndex]["GitHash"]=[]
+        g_summary_dict_intermittents["TestInfo"][testIndex]["TestCategory"]=[]
+        g_summary_dict_intermittents["TestInfo"][testIndex]["NodeName"]=[]
+        g_summary_dict_intermittents["TestInfo"][testIndex]["FailureCount"]=0
 
-#    if g_timestamp not in one_test_info["Timestamp"]:
-    one_test_info["JenkinsJobName"].append(g_job_name)
-    one_test_info["BuildID"].append(g_build_id)
-    one_test_info["Timestamp"].append(g_threshold_failure)
-    one_test_info["GitHash"].append(g_git_hash)
-    one_test_info["TestCategory"].append(g_unit_test_type) # would be JUnit, PyUnit, RUnit or HadoopPyUnit, HadoopRUnit
-    one_test_info["NodeName"].append(g_node_name)
-    one_test_info["FailureCount"] += 1
-
-    error_url = '/'.join([g_resource_url, 'testReport', failed_test_path])
-    get_console_out(error_url)      # store failure message in temp file
-
-    if os.path.isfile(g_temp_filename):
-        with open(g_temp_filename, 'r') as error_file:
-            one_test_info["FailureMessages"].append(error_file.read())
-    else:
-        one_test_info["FailureMessages"].append("")   # append empty error message if file not found
-    return one_test_info
+    g_summary_dict_intermittents["TestInfo"][testIndex]["JenkinsJobName"].extend(one_test_info["JenkinsJobName"])
+    g_summary_dict_intermittents["TestInfo"][testIndex]["BuildID"].extend(one_test_info["BuildID"])
+    g_summary_dict_intermittents["TestInfo"][testIndex]["Timestamp"].extend(one_test_info["Timestamp"])
+    g_summary_dict_intermittents["TestInfo"][testIndex]["GitHash"].extend(one_test_info["GitHash"])
+    g_summary_dict_intermittents["TestInfo"][testIndex]["TestCategory"].extend(one_test_info["TestCategory"])
+    g_summary_dict_intermittents["TestInfo"][testIndex]["NodeName"].extend(one_test_info["NodeName"])
+    g_summary_dict_intermittents["TestInfo"][testIndex]["FailureCount"] += one_test_info["NodeName"]
 
 
-
-'''
-This function is written to extract the console output that has already been stored
-in a text file in a remote place and saved it in a local directory that we have accessed
-to.  We want to be able to read in the local text file and proces it.
-'''
-def get_console_out(url_string):
+def printSaveIntermittens():
     """
-    Grab the console output from Jenkins and save the content into a temp file
-     (g_temp_filename).  From the saved text file, we can grab the names of
-     failed tests.
-
-    Parameters
-    ----------
-    url_string :  str
-        contains information on the jenkins job whose console output we are interested in.  It is in the context
-        of resource_url/job/job_name/build_id/testReport/
-
-    :return: none
-    """
-    global g_temp_filename
-
-    full_command = 'curl ' + '"'+ url_string +'"'+ ' > ' + g_temp_filename
-    subprocess.call(full_command,shell=True)
-
-
-def extract_failed_tests_info():
-    """
-    This method will scrape the console output for pyunit,runit and hadoop runs and grab the list of failed tests
-    and their corresponding paths so that the test execution summary can be located later.
-
-    :return: none
-    """
-    global g_failed_testnames
-    global g_failed_test_paths
-
-    if os.path.isfile(g_temp_filename):
-        console_file = open(g_temp_filename,'r')  # open temp file that stored jenkins job console output
-        try:
-            for each_line in console_file:  # go through each line of console output to extract build ID, data/time ...
-                each_line.strip()
-                print(each_line)
-                if ("Test Result" in each_line) and ("failure" in each_line): # the next few lines will contain failed tests
-                    temp = each_line.split("testReport")
-                    if ("Test Result" in temp[1]) and ("failure" in temp[1]):        # grab number of failed tests
-                        tempCount = int(temp[1].split("</a>")[1].split(" ")[0].split("(")[1])
-
-                        if isinstance(tempCount, int) and tempCount > 0:  # temp[1], temp[2],... should contain failed tests
-                            for findex in range(2,len(temp)):
-                                tempMess = temp[findex].split(">")
-                                g_failed_test_paths.append(tempMess[0].strip('"'))
-                                g_failed_testnames.append(tempMess[1].strip("</a").strip("r_suite."))
-
-                            break   # done.  Only one spot contains failed test info.
-        finally:
-            console_file.close()
-
-def save_failed_tests_info():
-    """
-    Given the failed tests information in g_failed_testnames, add the new failed test to
-    text file.  In addition, it will update the dictionary that stores all failed test info as well.
+    This function will print out the intermittents onto the screen for casual viewing.  It will also print out
+    where the giant summary dictionary is going to be stored.
 
     :return: None
     """
-    global g_failed_tests_info_dict
-    if len(g_failed_testnames) > 0: # found failed test
-        if os.path.isfile(g_failed_tests_dict):
-            with open(g_failed_tests_dict, 'rb') as dict_file:
-                g_failed_tests_info_dict = pickle.load(dict_file)
-        else:       # file not found, create new dict
-            init_failed_tests_dict()
+    for ind in len(g_summary_dict_intermittents):
+        testName = g_summary_dict_intermittents["TestName"][ind]
+        numberFailure = g_summary_dict_intermittents["TestInfo"][ind]["FailureCount"]
+        firstFailedTS = min(g_summary_dict_intermittents["TestInfo"][ind]["Timestamp"])
 
-        with open(g_summary_text_filename, 'a') as failed_file:
-            for index in range(len(g_failed_testnames)):
+        print("Intermittent test: {0} has failed {1} times in the past since {2}".format(testName, numberFailure,
+                                                                                         time.ctime(firstFailedTS)))
+    # save dict in file
+    with open(g_summary_dict_name, 'wb') as writeFile:
+        pickle.dump(g_summary_dict_intermittents, writeFile)
 
-                testInfo = ','.join([str(g_threshold_failure), g_job_name, str(g_build_id), g_git_hash, g_node_name,
-                                     g_unit_test_type, g_failed_testnames[index]])
-                failed_file.write(testInfo)
-                failed_file.write('\n')
-                    # update failed tests dictionary
-                update_failed_test_info_dict(g_failed_testnames[index], g_failed_test_paths[index])
-        with open(g_failed_tests_dict, 'wb') as error_file:
-            pickle.dump(g_failed_tests_info_dict, error_file)
-
-
-def update_failed_test_info_dict(failed_testname, failed_test_path):
-    """
-    Update the dictionary structure that stores failed unit test information.
-
-    :param failed_testname: string containing name of failed test.
-    :param failed_test_path: string containing the path to failed test url.
-    :return: None
-    """
-    global g_failed_tests_info_dict
-
-    if failed_testname in g_failed_tests_info_dict["TestName"]:     # existing test
-        g_failed_tests_info_dict["TestInfo"][g_failed_tests_info_dict["TestName"].index(failed_testname)] = \
-            init_update_each_failed_test_dict(
-                g_failed_tests_info_dict["TestInfo"][g_failed_tests_info_dict["TestName"].index(failed_testname)],
-                failed_test_path, False)
-    else:   # next test
-        g_failed_tests_info_dict["TestName"].append(failed_testname)
-        g_failed_tests_info_dict["TestInfo"].append(init_update_each_failed_test_dict(dict(), failed_test_path, True))
-
-def trim_data_back_to(monthToKeep):
-    """
-    This method will remove data from the summary text file and the dictionary file for tests that occurs before
-    the number of months specified by monthToKeep.
-
-    :param monthToKeep:
-    :return:
-    """
-    global g_failed_tests_info_dict
-    current_time = time.time()      # unit in seconds
-
-    oldest_time_allowed = current_time - monthToKeep*30*24*3600 # in seconds
-
-    clean_up_failed_test_dict(oldest_time_allowed)
-    clean_up_summary_text(oldest_time_allowed)
-
-
-def clean_up_failed_test_dict(oldest_time_allowed):
-    # read in data from dictionary file
-    global g_failed_tests_info_dict
-    if os.path.isfile(g_failed_tests_dict):
-        with open(g_failed_tests_dict, 'rb') as dict_file:
-            g_failed_tests_info_dict = pickle.load(dict_file)
-
-            test_index = 0
-            while test_index < len(g_failed_tests_info_dict["TestName"]):
-                test_dicts = g_failed_tests_info_dict["TestInfo"][test_index]   # a list of dictionary
-
-                dict_index = 0
-                while (len(test_dicts["Timestamp"]) > 0) and (dict_index < len(test_dicts["Timestamp"])):
-                    if (test_dicts["Timestamp"][dict_index] < oldest_time_allowed):
-                        del test_dicts["JenkinsJobName"][dict_index]
-                        del test_dicts["BuildID"][dict_index]
-                        del test_dicts["Timestamp"][dict_index]
-                        del test_dicts["GitHash"][dict_index]
-                        del test_dicts["TestCategory"][dict_index]
-                        del test_dicts["NodeName"][dict_index]
-                        test_dicts["FailureCount"] -= 1
-                    else:
-                        dict_index = dict_index+1
-
-                if test_dicts["FailureCount"] <= 0: # remove test name with 0 counts of failure count
-                    del g_failed_tests_info_dict["Testname"][test_index]
-                    del g_failed_tests_info_dict["TestInfo"][test_index]
-                else:
-                    test_index = test_index+1
-
-        with open(g_failed_tests_dict, 'wb') as dict_file:
-            pickle.dump(g_failed_tests_info_dict, dict_file)
-
-
-def clean_up_summary_text(oldest_time_allowed):
-    # clean up the summary text data
-    if os.path.isfile(g_summary_text_filename):
-        with open(g_summary_text_filename, 'r') as text_file:
-            with open(g_temp_filename, 'w') as temp_file:
-                for each_line in text_file:
-                    temp = each_line.split(',')
-                    if len(temp) >= 7:
-                        timestamp = float(temp[0])
-
-                        if (timestamp > oldest_time_allowed):
-                            temp_file.write(each_line)
-
-        with open(g_summary_text_filename, 'w') as text_file:   # write content back to original summary file
-            with open(g_temp_filename, 'r') as temp_file:
-                text_file.write(temp_file.read())
-
-def usage():
-    """
-    Print USAGE help.
-    """
-    print("")
-    print("Usage:  ")
-    print("python summarizeINtermittents threshold Failed_PyUnits_summary_dict_from ....")
-    print(" threshold is an integer for which a failed test is labeled intermittent if its number of "
-          "failure exceeds it.")
-    print(" Failed_PyUnits_summary_dict_from is a string denoting the beginning of pickle files that contains"
-          "")
-    print(" ... denotes extra strings that represent the beginning of pickle files that you want us to summarize"
-          "for you.")
 
 def main(argv):
     """
@@ -308,45 +196,27 @@ def main(argv):
     global g_script_name
     global g_test_root_dir
     global g_threshold_failure
+    global g_AWS_file_path
     global g_file_start
+    global g_summary_dict_name
 
-
-    global g_job_name
-    global g_build_id
-    global g_git_hash
-    global g_node_name
-    global g_unit_test_type
-    global g_jenkins_url
-    global g_temp_filename
-    global g_summary_text_filename  # store failed test info in csv format
-    global g_failed_tests_dict      # store failed test info as a dictionary
-    global g_resource_url
-
-    if len(argv) < 4:
+    if len(argv) < 6:
         print "Wrong call.  Not enough arguments.\n"
         usage()
         sys.exit(1)
     else:   # we may be in business
-        g_script_name = os.path.basename(argv[0])   # get name of script being run.
         g_threshold_failure = int(argv[1])
+        g_summary_dict_name = os.path.join(g_test_root_dir, argv[2])
+        g_AWS_file_path = argv[3]
 
-        for ind in range(2, len(argv)):
+        for ind in range(4, len(argv)):
             g_file_start.append(argv[ind])
 
+        copyFilesToLocal()
+        init_intermittents_dict()
+        summarizeFailedRuns()
+        printSaveIntermittens()
 
-        g_temp_filename = os.path.join(g_test_root_dir,'tempText')
-        g_summary_text_filename = '/'.join([g_test_root_dir, '..', argv[8]])
-        g_failed_tests_dict = '/'.join([g_test_root_dir, '..', argv[9]])
- #       g_summary_text_filename = os.path.join(g_test_root_dir, argv[8])
- #       g_failed_tests_dict = os.path.join(g_test_root_dir, argv[9])
-        monthToKeep = float(argv[10])
-
-        g_resource_url = '/'.join([g_jenkins_url, "job", g_job_name, g_build_id])
-        get_console_out(g_resource_url+"/#showFailuresLink/")       # save remote console output in local directory
-        extract_failed_tests_info()      # grab the console text and stored the failed tests/paths
-        save_failed_tests_info()         # save new failed test info into a file
-        if monthToKeep > 0:
-            trim_data_back_to(monthToKeep)   # remove data that are too old to save space
 
 if __name__ == "__main__":
     main(sys.argv)
