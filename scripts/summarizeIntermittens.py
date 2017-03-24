@@ -100,7 +100,7 @@ def summarizeFailedRuns():
                     temp_dict = pickle.load(dataFile)   # load in the file with dict containing failed tests
 
                     # scrape through temp_dict and see if we need to add the test to intermittents
-                    for ind in range(len(temp_dict)):
+                    for ind in range(len(temp_dict["TestName"])):
                         addFailedTests(g_summary_dict_all, temp_dict, ind)
                 break
 
@@ -161,11 +161,11 @@ def extractPrintSaveIntermittens():
     # extract intermittents from collected failed tests
     global g_summary_dict_intermittents
 
-    for ind in range(len(g_summary_dict_all)):
+    for ind in range(len(g_summary_dict_all["TestName"])):
         if g_summary_dict_all["TestInfo"][ind]["FailureCount"] >= g_threshold_failure:
             addFailedTests(g_summary_dict_intermittents, g_summary_dict_all, ind)
 
-    for ind in range(len(g_summary_dict_intermittents)):
+    for ind in range(len(g_summary_dict_intermittents["TestName"])):
         testName = g_summary_dict_intermittents["TestName"][ind]
         numberFailure = g_summary_dict_intermittents["TestInfo"][ind]["FailureCount"]
         firstFailedTS = min(g_summary_dict_intermittents["TestInfo"][ind]["Timestamp"])
@@ -173,7 +173,7 @@ def extractPrintSaveIntermittens():
         print("Intermittent test: {0} has failed {1} times in the past since {2}".format(testName, numberFailure,
                                                                                          time.ctime(firstFailedTS)))
     # save dict in file
-    if len(g_summary_dict_intermittents) > 0:
+    if len(g_summary_dict_intermittents["TestName"]) > 0:
         with open(g_summary_dict_name, 'wb') as writeFile:
             pickle.dump(g_summary_dict_intermittents, writeFile)
 
