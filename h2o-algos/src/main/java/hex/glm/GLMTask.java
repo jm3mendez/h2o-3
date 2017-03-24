@@ -1433,10 +1433,8 @@ public abstract class GLMTask  {
       chunks[chunks.length - 1].getDoubles(xCurr, 0, xCurr.length, _NA, _normSub, _normMul);
 
       for (int i = 0; i < chunks[0]._len; ++i) { // going over all the rows in the chunk
-        double x = xCurr[i];
-        if(x < _min || x > _max)
-          System.out.println("x out of bounds: " + _min + " <= " + x + " <= " + _max + ", chunk = " + chunks[chunks.length-1].getClass().getSimpleName());
         if(wChunk[i] == 0)continue;
+        double x = xCurr[i];
         double ztilda = ztildaChunk[i] - x*_bOld + xPrev[i] * _bNew;;
         ztildaChunk[i] = ztilda; //
         _res += wChunk[i] * x * (zChunk[i] - ztilda);

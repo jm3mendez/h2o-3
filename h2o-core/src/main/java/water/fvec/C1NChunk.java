@@ -48,6 +48,11 @@ public class C1NChunk extends Chunk {
       vals[i-from] = _mem[i]&0xFF;
     return vals;
   }
+  @Override public double [] getDoubles(double [] vals, int from, int to, double NA, double bias, double scale){
+    for(int i = from; i < to; ++i)
+      vals[i-from] = scale*((_mem[i]&0xFF) - bias);
+    return vals;
+  }
   @Override
   public <T extends ChunkVisitor> T processRows(T v, int from, int to) {
     for(int i = from; i < to; i++) v.addValue(0xFF&_mem[i]);

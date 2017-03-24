@@ -167,6 +167,13 @@ public class CBSChunk extends Chunk {
     return vals;
   }
 
+  @Override public double [] getDoubles(double [] vals, int from, int to, double NA) {
+    for(int i = from; i < to; ++i) {
+      int x = read(i);
+      vals[i - from] = (x == _NA)?NA:x;
+    }
+    return vals;
+  }
   @Override public double [] getDoubles(double [] vals, int from, int to, double NA, double bias, double scale) {
     for(int i = from; i < to; ++i) {
       int x = read(i);
