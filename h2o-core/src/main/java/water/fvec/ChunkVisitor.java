@@ -97,7 +97,8 @@ public abstract class ChunkVisitor {
     void addZeros(int zeros) {
       int k = _k;
       int kmax = k +zeros;
-      for(;k < kmax; k++) vals[k] = 0;
+      double zero = _scale*(0-_bias);
+      for(;k < kmax; k++) vals[k] = zero;
       _k = kmax;
     }
     @Override
