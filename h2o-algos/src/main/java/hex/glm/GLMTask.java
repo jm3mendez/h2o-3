@@ -1429,6 +1429,7 @@ public abstract class GLMTask  {
       final double[] xCurr = ((C8DVolatileChunk) chunks[cnt + 1-(_iter_cnt & 1)]).getValues();
       chunks[chunks.length - 1].getDoubles(xCurr, 0, xCurr.length, _NA, _normSub, _normMul);
       for (int i = 0; i < chunks[0]._len; ++i) { // going over all the rows in the chunk
+        if(wChunk[i] == 0)continue;
         double x = xCurr[i];
         double ztilda = ztildaChunk[i] - x*_bOld + xPrev[i] * _bNew;;
         ztildaChunk[i] = ztilda; //
@@ -1460,6 +1461,7 @@ public abstract class GLMTask  {
       final double[] ztildaChunk = ((C8DVolatileChunk) chunks[cnt++]).getValues();
       final double[] xPrev = ((C8DVolatileChunk) chunks[cnt + (_iter_cnt & 1)]).getValues();
       for (int i = 0; i < chunks[0]._len; ++i) { // going over all the rows in the chunk
+        if(wChunk[i] == 0)continue;
         ztildaChunk[i] = ztildaChunk[i] - _bOld + xPrev[i] * _bNew; //
         _res += wChunk[i] * (zChunk[i] - ztildaChunk[i]);
       }
@@ -1731,9 +1733,8 @@ public abstract class GLMTask  {
         assert ((_params._family != Family.binomial) || (0 <= y && y <= 1)) : "illegal response column, y must be <0,1>  for family=Binomial. got " + y;
         final double eta;
         final int numStart = _dinfo.numStart();
-
         eta = r.innerProduct(_betaw);
-        _glmf.computeWeights(y,eta,0,1,glmw);
+        _glmf.computeWeights(y,eta,0,r.weight,glmw);
         _likelihood += glmw.l;
         zTilda[i] = eta-_betaw[_betaw.length-1];
         assert glmw.w >= 0 || Double.isNaN(glmw.w) : "invalid weight " + glmw.w; // allow NaNs - can occur if line-search is needed!
