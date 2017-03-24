@@ -791,6 +791,9 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
 
     private Frame _codVecs;
     private void fitCOD() {
+      DataInfo activeData = _state.activeData();
+      if(activeData._predictor_transform != DataInfo.TransformType.STANDARDIZE)
+        throw H2O.unimpl("COD for non-standardized data is not implemented!");
       final double l1pen = _state.lambda() * _parms._alpha[0];
       final double l2pen = _state.lambda() * (1-_parms._alpha[0]);
       double [] beta = _state.beta().clone();
@@ -820,7 +823,7 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
         int iter1 = 0;
         int iter_cnt = 0;
 
-        DataInfo activeData = _state.activeData();
+
         final Frame fr1 = new Frame(_codVecs);
         final int xjIdx = fr1.numCols();
         fr1.add("xj", /* just a placeholder */ _codVecs.anyVec()); // add current variable col
@@ -846,14 +849,14 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
             }
             if(activeData._nums>0) {
               fr1.replace(xjIdx,activeData._adaptedFrame.vec(activeData._cats));
-              double stupdate = new GLMCoordinateDescentTaskSeqNaiveCatNum(iter_cnt++, betaold[activeData.numStart()], b, activeData.normMul(0), activeData.normSub(0), activeData._numMeans[0]-activeData.normSub(0)).doAll(fr1)._res;
+              double stupdate = new GLMCoordinateDescentTaskSeqNaiveCatNum(iter_cnt++, betaold[activeData.numStart()], b, activeData.normMul(0), activeData.normSub(0), 0 /* always standardized => mean == 0 */ ).doAll(fr1)._res;
               beta[activeData.numStart()] = ADMM.shrinkage(stupdate * wsumuInv,l1pen) * denums[_state.activeData().numStart()];
             } else { // catIcpt
               beta[beta.length-1] = new GLMTask.GLMCoordinateDescentTaskSeqNaiveCatIcpt(iter_cnt++, betaold[beta.length-1], b).doAll(_codVecs)._res * wsumInv;
             }
           } else if(activeData._nums > 0) {
             fr1.replace(xjIdx,activeData._adaptedFrame.vec(activeData._cats));
-            double stupdate = new GLMCoordinateDescentTaskSeqNaiveIcptNum(iter_cnt++, betaold[0], betaold[beta.length-1], activeData.normMul(0), activeData.normSub(0), activeData._numMeans[0]-activeData.normSub(0)).doAll(fr1)._res;
+            double stupdate = new GLMCoordinateDescentTaskSeqNaiveIcptNum(iter_cnt++, betaold[0], betaold[beta.length-1], activeData.normMul(0), activeData.normSub(0), 0).doAll(fr1)._res;
             assert activeData.numStart() == 0;
             beta[0] = ADMM.shrinkage(stupdate * wsumuInv,l1pen) * denums[0];
           }
@@ -861,7 +864,9 @@ public class GLM extends ModelBuilder<GLMModel,GLMParameters,GLMOutput> {
             int currIdx = i + activeData.numStart();
             int prevIdx = currIdx - 1;
             fr1.replace(xjIdx, activeData._adaptedFrame.vec(activeData._cats+i)); // add current variable col
-            GLMCoordinateDescentTaskSeqNaiveNumNum tsk = new GLMCoordinateDescentTaskSeqNaiveNumNum(iter_cnt++, betaold[currIdx], beta[prevIdx], activeData.normMul(i), activeData.normSub(i),activeData._numMeans[i]-activeData.normSub(i)).doAll(fr1);
+            double max = (activeData._adaptedFrame.vec(i).max() - activeData.normSub(i))*activeData.normMul(i);
+            double min = (activeData._adaptedFrame.vec(i).min() - activeData.normSub(i))*activeData.normMul(i);
+            GLMCoordinateDescentTaskSeqNaiveNumNum tsk = new GLMCoordinateDescentTaskSeqNaiveNumNum(iter_cnt++, betaold[currIdx], beta[prevIdx], activeData.normMul(i), activeData.normSub(i),0,max,min).doAll(fr1);
             beta[currIdx] = ADMM.shrinkage(tsk._res * wsumuInv,l1pen) * denums[currIdx];
           }
           // intercept

@@ -1409,14 +1409,17 @@ public abstract class GLMTask  {
 
     double _res;
     int _iter_cnt;
+    double _max; double _min;
 
-    public GLMCoordinateDescentTaskSeqNaiveNumNum(int iter_cnt, double betaOld, double betaNew, double normMul, double normSub, double NA) { // pass it norm mul and norm sup - in the weights already done. norm
+    public GLMCoordinateDescentTaskSeqNaiveNumNum(int iter_cnt, double betaOld, double betaNew, double normMul, double normSub, double NA, double max, double min) { // pass it norm mul and norm sup - in the weights already done. norm
       _iter_cnt = iter_cnt;
       _normMul = normMul;
       _normSub = normSub;
       _bOld = betaOld;
       _bNew = betaNew;
       _NA = NA;
+      _max = max;
+      _min = min;
     }
 
     @Override
@@ -1428,9 +1431,12 @@ public abstract class GLMTask  {
       final double[] xPrev = ((C8DVolatileChunk) chunks[cnt + (_iter_cnt & 1)]).getValues();
       final double[] xCurr = ((C8DVolatileChunk) chunks[cnt + 1-(_iter_cnt & 1)]).getValues();
       chunks[chunks.length - 1].getDoubles(xCurr, 0, xCurr.length, _NA, _normSub, _normMul);
+
       for (int i = 0; i < chunks[0]._len; ++i) { // going over all the rows in the chunk
-        if(wChunk[i] == 0)continue;
         double x = xCurr[i];
+        if(x < _min || x > _max)
+          System.out.println("x out of bounds: " + _min + " <= " + x + " <= " + _max + ", chunk = " + chunks[chunks.length-1].getClass().getSimpleName());
+        if(wChunk[i] == 0)continue;
         double ztilda = ztildaChunk[i] - x*_bOld + xPrev[i] * _bNew;;
         ztildaChunk[i] = ztilda; //
         _res += wChunk[i] * x * (zChunk[i] - ztilda);
@@ -1499,6 +1505,7 @@ public abstract class GLMTask  {
       final double[] xCurr = ((C8DVolatileChunk) chunks[cnt + 1-(_iter_cnt & 1)]).getValues();
       chunks[chunks.length - 1].getDoubles(xCurr, 0, xCurr.length, _NA, _normSub, _normMul);
       for (int i = 0; i < chunks[0]._len; ++i) { // going over all the rows in the chunk
+        if(wChunk[i] == 0)continue;
         double x = xCurr[i];
         ztildaChunk[i] = ztildaChunk[i] - x*_bOld + _bNew; //
         _res += wChunk[i] * x * (zChunk[i] - ztildaChunk[i]);
@@ -1542,6 +1549,7 @@ public abstract class GLMTask  {
       final int[] xCurr = ((C4VolatileChunk) chunks[cnt + 3-(_iter_cnt & 1)]).getValues();
       chunks[chunks.length - 1].getIntegers(xCurr, 0, xCurr.length, _NA);
       for (int i = 0; i < chunks[0]._len; ++i) { // going over all the rows in the chunk
+        if(wChunk[i] == 0)continue;
         int cid = xCurr[i];
         if (_catMap != null)   // some levels are ignored?
           xCurr[i] = (cid = _catMap[cid]);
@@ -1588,6 +1596,7 @@ public abstract class GLMTask  {
       final int[] xCurr = ((C4VolatileChunk) chunks[cnt + 3 - (_iter_cnt & 1)]).getValues();
       chunks[chunks.length - 1].getIntegers(xCurr, 0, xCurr.length, _NA);
       for (int i = 0; i < chunks[0]._len; ++i) { // going over all the rows in the chunk
+        if(wChunk[i] == 0)continue;
         int cid = xCurr[i];
         if (_catMap != null)   // some levels are ignored?
           xCurr[i] = cid = _catMap[cid];
@@ -1629,6 +1638,7 @@ public abstract class GLMTask  {
       final double[] xCurr = ((C8DVolatileChunk) chunks[cnt + 1-(_iter_cnt & 1)]).getValues();
       chunks[chunks.length - 1].getDoubles(xCurr, 0, xCurr.length, _NA,_normSub,_normMul);
       for (int i = 0; i < chunks[0]._len; ++i) { // going over all the rows in the chunk
+        if(wChunk[i] == 0)continue;
         ztildaChunk[i] = ztildaChunk[i] - xCurr[i]*_bOld + (xPrev[i] >= 0?_bNew[xPrev[i]]:0); //
         _res += wChunk[i] * xCurr[i] *(zChunk[i] - ztildaChunk[i]);
       }
@@ -1660,6 +1670,7 @@ public abstract class GLMTask  {
       final double [] ztildaChunk = ((C8DVolatileChunk) chunks[cnt++]).getValues();
       final int [] xPrev = ((C4VolatileChunk) chunks[cnt + 2 + (_iter_cnt & 1)]).getValues();
       for (int i = 0; i < chunks[0]._len; ++i) { // going over all the rows in the chunk
+        if(wChunk[i] == 0)continue;
         double bNew = xPrev[i] >= 0?_bNew[xPrev[i]]:0;
         ztildaChunk[i] = ztildaChunk[i] - _bOld + bNew; //
         _res += wChunk[i] * (zChunk[i] - ztildaChunk[i]);
@@ -1685,6 +1696,7 @@ public abstract class GLMTask  {
       final double[] zChunk = ((C8DVolatileChunk) chunks[cnt++]).getValues();
       final double[] ztildaChunk = ((C8DVolatileChunk) chunks[cnt++]).getValues();
       for (int i = 0; i < chunks[0]._len; ++i) { // going over all the rows in the chunk
+        if(wChunk[i] == 0)continue;
         double diff = zChunk[i] - ztildaChunk[i] - _icptDiff;
         _res += wChunk[i] * diff * diff;
       }
@@ -1720,12 +1732,12 @@ public abstract class GLMTask  {
       chunks = Arrays.copyOf(chunks,chunks.length-7);
       denums = new double[_dinfo.fullN()+1]; // full N is expanded variables with categories
       Row r = _dinfo.newDenseRow();
+      assert r.weight == 1 || r.weight == 0;
       for(int i = 0; i < chunks[0]._len; ++i) {
         _dinfo.extractDenseRow(chunks,i,r);
         if (r.isBad() || r.weight == 0) {
           wChunk[i] = 0;
-          zChunk[i] = 0;
-          zTilda[i] = 0;
+          zChunk[i] = Double.NaN; // should not be used!
           continue;
         }
         final double y = r.response(0);
