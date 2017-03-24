@@ -2,7 +2,7 @@
 
 import sys
 import os
-import pickle
+import json
 import subprocess
 import time
 
@@ -174,8 +174,10 @@ def save_failed_tests_info():
     global g_failed_tests_info_dict
     if len(g_failed_testnames) > 0: # found failed test
         if os.path.isfile(g_failed_tests_dict):
-            with open(g_failed_tests_dict, 'rb') as dict_file:
-                g_failed_tests_info_dict = pickle.load(dict_file)
+            g_failed_tests_info_dict=json.load(open(g_failed_tests_dict, 'r'))
+
+            # with open(g_failed_tests_dict, 'rb') as dict_file:
+            #     g_failed_tests_info_dict = pickle.load(dict_file)
         else:       # file not found, create new dict
             init_failed_tests_dict()
 
@@ -188,8 +190,9 @@ def save_failed_tests_info():
                 failed_file.write('\n')
                     # update failed tests dictionary
                 update_failed_test_info_dict(g_failed_testnames[index], g_failed_test_paths[index])
-        with open(g_failed_tests_dict, 'wb') as error_file:
-            pickle.dump(g_failed_tests_info_dict, error_file)
+        json.dump(g_failed_tests_info_dict, open(g_failed_tests_dict, 'w'))
+        # with open(g_failed_tests_dict, 'wb') as error_file:
+        #     pickle.dump(g_failed_tests_info_dict, error_file)
 
 
 def update_failed_test_info_dict(failed_testname, failed_test_path):
@@ -232,34 +235,35 @@ def clean_up_failed_test_dict(oldest_time_allowed):
     # read in data from dictionary file
     global g_failed_tests_info_dict
     if os.path.isfile(g_failed_tests_dict):
-        with open(g_failed_tests_dict, 'rb') as dict_file:
-            g_failed_tests_info_dict = pickle.load(dict_file)
+        # with open(g_failed_tests_dict, 'rb') as dict_file:
+        #     g_failed_tests_info_dict = pickle.load(dict_file)
+        g_failed_tests_info_dict=json.load(open(g_failed_tests_dict,'r'))
+        test_index = 0
+        while test_index < len(g_failed_tests_info_dict["TestName"]):
+            test_dicts = g_failed_tests_info_dict["TestInfo"][test_index]   # a list of dictionary
 
-            test_index = 0
-            while test_index < len(g_failed_tests_info_dict["TestName"]):
-                test_dicts = g_failed_tests_info_dict["TestInfo"][test_index]   # a list of dictionary
-
-                dict_index = 0
-                while (len(test_dicts["Timestamp"]) > 0) and (dict_index < len(test_dicts["Timestamp"])):
-                    if (test_dicts["Timestamp"][dict_index] < oldest_time_allowed):
-                        del test_dicts["JenkinsJobName"][dict_index]
-                        del test_dicts["BuildID"][dict_index]
-                        del test_dicts["Timestamp"][dict_index]
-                        del test_dicts["GitHash"][dict_index]
-                        del test_dicts["TestCategory"][dict_index]
-                        del test_dicts["NodeName"][dict_index]
-                        test_dicts["FailureCount"] -= 1
-                    else:
-                        dict_index = dict_index+1
-
-                if test_dicts["FailureCount"] <= 0: # remove test name with 0 counts of failure count
-                    del g_failed_tests_info_dict["Testname"][test_index]
-                    del g_failed_tests_info_dict["TestInfo"][test_index]
+            dict_index = 0
+            while (len(test_dicts["Timestamp"]) > 0) and (dict_index < len(test_dicts["Timestamp"])):
+                if (test_dicts["Timestamp"][dict_index] < oldest_time_allowed):
+                    del test_dicts["JenkinsJobName"][dict_index]
+                    del test_dicts["BuildID"][dict_index]
+                    del test_dicts["Timestamp"][dict_index]
+                    del test_dicts["GitHash"][dict_index]
+                    del test_dicts["TestCategory"][dict_index]
+                    del test_dicts["NodeName"][dict_index]
+                    test_dicts["FailureCount"] -= 1
                 else:
-                    test_index = test_index+1
+                    dict_index = dict_index+1
 
-        with open(g_failed_tests_dict, 'wb') as dict_file:
-            pickle.dump(g_failed_tests_info_dict, dict_file)
+            if test_dicts["FailureCount"] <= 0: # remove test name with 0 counts of failure count
+                del g_failed_tests_info_dict["Testname"][test_index]
+                del g_failed_tests_info_dict["TestInfo"][test_index]
+            else:
+                test_index = test_index+1
+
+        json.dump(g_failed_tests_info_dict, open(g_failed_tests_dict, 'w'))
+        # with open(g_failed_tests_dict, 'wb') as dict_file:
+        #     pickle.dump(g_failed_tests_info_dict, dict_file)
 
 
 def clean_up_summary_text(oldest_time_allowed):
