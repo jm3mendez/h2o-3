@@ -616,8 +616,8 @@ public abstract class GLMTask  {
 
   static class GLMGenericGradientTask extends GLMGradientTask {
     private final GLMWeightsFun _glmf;
-    public GLMGenericGradientTask(Key jobKey, DataInfo dinfo, GLMParameters parms, double lambda, double[] beta) {
-      super(jobKey, dinfo, parms._obj_reg, lambda, beta);
+    public GLMGenericGradientTask(Key jobKey, double obj_reg, DataInfo dinfo, GLMParameters parms, double lambda, double[] beta) {
+      super(jobKey, dinfo, obj_reg, lambda, beta);
       _glmf = new GLMWeightsFun(parms);
     }
 
@@ -640,8 +640,8 @@ public abstract class GLMTask  {
 
   static class GLMPoissonGradientTask extends GLMGradientTask {
     private final GLMWeightsFun _glmf;
-    public GLMPoissonGradientTask(Key jobKey, DataInfo dinfo, GLMParameters parms, double lambda, double[] beta) {
-      super(jobKey, dinfo, parms._obj_reg, lambda, beta);
+    public GLMPoissonGradientTask(Key jobKey, double obj_reg, DataInfo dinfo, GLMParameters parms, double lambda, double[] beta) {
+      super(jobKey, dinfo, obj_reg, lambda, beta);
       _glmf = new GLMWeightsFun(parms);
     }
     @Override protected void computeGradientMultipliers(double [] es, double [] ys, double [] ws){
@@ -664,8 +664,8 @@ public abstract class GLMTask  {
 
   static class GLMQuasiBinomialGradientTask extends GLMGradientTask {
     private final GLMWeightsFun _glmf;
-    public GLMQuasiBinomialGradientTask(Key jobKey, DataInfo dinfo, GLMParameters parms, double lambda, double[] beta) {
-      super(jobKey, dinfo, parms._obj_reg, lambda, beta);
+    public GLMQuasiBinomialGradientTask(Key jobKey, double obj_reg, DataInfo dinfo, GLMParameters parms, double lambda, double[] beta) {
+      super(jobKey, dinfo, obj_reg, lambda, beta);
       _glmf = new GLMWeightsFun(parms);
     }
     @Override protected void computeGradientMultipliers(double [] es, double [] ys, double [] ws){
@@ -683,8 +683,8 @@ public abstract class GLMTask  {
 
 
   static class GLMBinomialGradientTask extends GLMGradientTask {
-    public GLMBinomialGradientTask(Key jobKey, DataInfo dinfo, GLMParameters parms, double lambda, double [] beta) {
-      super(jobKey,dinfo,parms._obj_reg,lambda,beta);
+    public GLMBinomialGradientTask(Key jobKey, double obj_reg, DataInfo dinfo, GLMParameters parms, double lambda, double [] beta) {
+      super(jobKey,dinfo,obj_reg,lambda,beta);
       assert parms._family == Family.binomial && parms._link == Link.logit;
     }
 
@@ -702,8 +702,8 @@ public abstract class GLMTask  {
   }
 
   static class GLMGaussianGradientTask extends GLMGradientTask {
-    public GLMGaussianGradientTask(Key jobKey, DataInfo dinfo, GLMParameters parms, double lambda, double [] beta) {
-      super(jobKey,dinfo,parms._obj_reg,lambda,beta);
+    public GLMGaussianGradientTask(Key jobKey, double obj_reg, DataInfo dinfo, GLMParameters parms, double lambda, double [] beta) {
+      super(jobKey,dinfo,obj_reg,lambda,beta);
       assert parms._family == Family.gaussian && parms._link == Link.identity;
     }
 
