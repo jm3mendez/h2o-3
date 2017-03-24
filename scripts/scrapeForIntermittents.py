@@ -173,7 +173,7 @@ def save_failed_tests_info():
     """
     global g_failed_tests_info_dict
     if len(g_failed_testnames) > 0: # found failed test
-        if os.path.isfile(g_failed_tests_dict):
+        if os.path.isfile(g_failed_tests_dict) and os.path.getsize(g_failed_tests_dict) > 10:
             g_failed_tests_info_dict=json.load(open(g_failed_tests_dict, 'r'))
 
             # with open(g_failed_tests_dict, 'rb') as dict_file:
@@ -234,7 +234,7 @@ def trim_data_back_to(monthToKeep):
 def clean_up_failed_test_dict(oldest_time_allowed):
     # read in data from dictionary file
     global g_failed_tests_info_dict
-    if os.path.isfile(g_failed_tests_dict):
+    if os.path.isfile(g_failed_tests_dict) and os.path.getsize(g_failed_tests_dict)>10:
         # with open(g_failed_tests_dict, 'rb') as dict_file:
         #     g_failed_tests_info_dict = pickle.load(dict_file)
         g_failed_tests_info_dict=json.load(open(g_failed_tests_dict,'r'))
