@@ -2,11 +2,11 @@
 
 import sys
 import os
-import pickle
 import subprocess
 from os import listdir
 from os.path import isfile, join
 import time
+import json
 
 """
 This script will summary failed tests results and determine if any of them may be intermittents.  For
@@ -94,14 +94,15 @@ def summarizeFailedRuns():
 
     for f in onlyFiles:
         for fileStart in g_file_start:
-            if fileStart in f:  # found the file containing failed tests
+            if (fileStart in f) and (os.path.getsize(f) > 10):  # found the file containing failed tests
                 fFullPath = os.path.join(g_test_root_dir, f)
-                with open(fFullPath, 'rb') as dataFile:
-                    temp_dict = pickle.load(dataFile)   # load in the file with dict containing failed tests
+                temp_dict = json.load(open(fFullPath,'r'))
+                # with open(fFullPath, 'rb') as dataFile:
+                #     temp_dict = pickle.load(dataFile)   # load in the file with dict containing failed tests
 
-                    # scrape through temp_dict and see if we need to add the test to intermittents
-                    for ind in range(len(temp_dict["TestName"])):
-                        addFailedTests(g_summary_dict_all, temp_dict, ind)
+                # scrape through temp_dict and see if we need to add the test to intermittents
+                for ind in range(len(temp_dict["TestName"])):
+                    addFailedTests(g_summary_dict_all, temp_dict, ind)
                 break
 
 def addFailedTests(summary_dict, temp_dict, index):
@@ -174,8 +175,9 @@ def extractPrintSaveIntermittens():
                                                                                          time.ctime(firstFailedTS)))
     # save dict in file
     if len(g_summary_dict_intermittents["TestName"]) > 0:
-        with open(g_summary_dict_name, 'wb') as writeFile:
-            pickle.dump(g_summary_dict_intermittents, writeFile)
+        json.dump(g_summary_dict_intermittents, open(g_summary_dict_name, 'w'))
+        # with open(g_summary_dict_name, 'wb') as writeFile:
+        #     pickle.dump(g_summary_dict_intermittents, writeFile)
 
 
 def main(argv):
